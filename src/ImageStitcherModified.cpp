@@ -32,7 +32,7 @@ int main() {
 }
 
 /**
- * Main function to stitch
+ * Main function to stitch two images
  * @path1 Path of first raw image
  * @path2 Path of second raw image
  */
