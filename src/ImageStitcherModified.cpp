@@ -21,14 +21,21 @@ void readXYZFileDimension(char *fileName, unsigned short* width,
 void readXYZFile(char *fileName, unsigned short* imageData);
 void writeAsPNG(cv::Mat image, cv::String location);
 void showImage(cv::String title, cv::Mat image);
+int calculateCombinedHeight(int height1, int height2, int Y);
+int calculateCombinedWidth(int width1, int width2, int X);
+int calculateBottomRightXPoint(int width1, int width2, int X);
+void writeXYZFile(unsigned short * imageData, int width, int height,
+		char *fileName);
 
 int main() {
-	char* path1 = "2.xyz";
-	char* path2 = "3.xyz";
-	int X = -100; //100; //-20;
-	int Y = 20;
+	char* path1 = "Samples2/4.xyz";
+	char* path2 = "Samples2/5.xyz";
+	int X = -24; //100; //-20;
+	int Y = 220;
 	cv::Mat result = stichImage(path1, path2, X, Y);
-	writeAsPNG(result, "stitched.png");
+	writeAsPNG(result, "Samples2/Result/45.png");
+	writeXYZFile((unsigned short*) result.data, result.cols, result.rows,
+			"Samples2/Result/45.xyz");
 }
 
 /**
@@ -55,17 +62,40 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 	writeAsPNG(mat1, "image1.png");
 	writeAsPNG(mat2, "image2.png");
 
-	//calculate combine image size
-	int combineHeight = height1 + height2 - Y;
-	//int combineWidth = max((int) width1, width2 + abs(X));
-	int combineWidth = max(width2, width1) + abs(X);
+//Preprocessing: Set actual 0 image pixels to value 1, to disregard the background pixels from original pixels
+// Blending bugfix
+
+	for (int x = 0; x < mat1.rows; x++) {
+		for (int y = 0; y < mat1.cols * 2; y++) {
+			if (mat1.at<uchar>(x, y) == 0) {
+				mat1.at<uchar>(x, y) = 1;
+			}
+		}
+
+	}
+
+	for (int y = 0; y < mat2.rows; y++) {
+		for (int x = 0; x < mat2.cols * 2; x++) {
+			if (mat2.at<uchar>(y, x) == 0) {
+				mat2.at<uchar>(y, x) = 1;
+			}
+		}
+	}
+
+	writeAsPNG(mat1, "image1_B.png");
+	writeAsPNG(mat2, "image2_B.png");
+
+//calculate combine image size
+	int combineHeight = calculateCombinedHeight(height1, height2, Y);
+	int combineWidth = calculateCombinedWidth(width1, width2, X);
 
 	cv::Mat combined1 = cv::Mat::zeros(combineHeight, combineWidth, CV_16U);
 	cv::Mat combined2 = cv::Mat::zeros(combineHeight, combineWidth, CV_16U);
 
-	//Find intersection points
+//Find intersection points
 	cv::Point2d topLeft(abs(X), height1 - Y);
-	cv::Point2d bottomRight(width2, height1);
+	cv::Point2d bottomRight(calculateBottomRightXPoint(width1, width2, X),
+			height1);
 
 	if (X < 0) {
 		//if X is negative shift, reference image need to be shifted.
@@ -89,13 +119,13 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 
 	cv::Mat stitched = cv::Mat::zeros(combineHeight, combineWidth, CV_16U);
 
-	//METHOD1. FIXED BLENDING(NOT GOOD)
+//METHOD1. FIXED BLENDING(NOT GOOD)
 	cv::addWeighted(combined1, 0.5, combined2, 0.5, 30000, stitched);
 	writeAsPNG(stitched, "stitched1.png");
 
-	//Combine to blended2
+//Combine to blended2
 	for (int i = 0; i < combineHeight; i++) {
-		for (int j = 0; j < max(width2, width1) * 2; j++) {
+		for (int j = 0; j < combineWidth * 2; j++) {
 			ushort blenValue =
 					combined1.at<uchar>(i, j) == 0
 							|| combined2.at<uchar>(i, j) == 0 ?
@@ -105,11 +135,14 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 									+ combined2.at<uchar>(i, j) / 2;
 			stitched.at<uchar>(i, j) = blenValue;
 		}
+		cout << i << endl;
 	}
 
-	//Implement blending
-	//int commonWidth = width1 - abs(X);
-	int commonWidth = min(width1,width2) - abs(X);
+	writeAsPNG(stitched, "stitched2.png");
+
+//Implement blending
+//int commonWidth = width1 - abs(X);
+	int commonWidth = min(width1, width2) - abs(X);
 	int commonHeight = Y;
 	cout << "commonWidth" << commonWidth;
 	cv::Mat common1 = cv::Mat::zeros(commonHeight, commonWidth, CV_16U);
@@ -122,10 +155,10 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 	mat2(cv::Range(0, commonHeight), cv::Range(startX, startX + commonWidth)).copyTo(
 			common2);
 
-	//writeAsPNG(common1, "common1.png");
-	//writeAsPNG(common2, "common2.png");
+//writeAsPNG(common1, "common1.png");
+//writeAsPNG(common2, "common2.png");
 	cv::Mat commonBlended = cv::Mat::zeros(commonHeight, commonWidth, CV_16U);
-	//METHOD 2. Vertical Blending
+//METHOD 2. Vertical Blending
 	/*for (int i = 0; i < commonHeight; i++) {
 	 for (int j = 0; j < commonWidth * 2; j++) {
 	 ushort blendedValue = 0;
@@ -147,7 +180,7 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 	 cv::Range(abs(X), abs(X) + commonWidth)));
 	 writeAsPNG(blended2, "stitched.png");*/
 
-	//METHOD 3: Bidirectional Blending(Best Method)
+//METHOD 3: Bidirectional Blending(Best Method)
 	for (int i = 0; i < commonHeight; i++) {
 		for (int j = 0; j < max(width2, width1) * 2; j++) {
 			ushort blendedValue = 0;
@@ -186,6 +219,58 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 					cv::Range(abs(X), abs(X) + commonWidth)));
 
 	return stitched;
+}
+
+int calculateCombinedHeight(int height1, int height2, int Y) {
+	return height1 + height2 - Y;
+}
+
+/**
+ * Calculates combined width from shift X
+ */
+int calculateCombinedWidth(int width1, int width2, int X) {
+	int combinedWidth = 0;
+	if (width2 <= width1) {
+		if (X <= 0) {
+			combinedWidth = width1 + abs(X);
+		} else {
+			int diff = width1 - width2;
+			if (diff <= X)
+				combinedWidth = width2 + X;
+			else
+				combinedWidth = width1;
+		}
+	} else {
+		if (X <= 0) {
+			int diff = width2 - width1;
+			if (diff > X) {
+				combinedWidth = width2;
+			} else {
+				combinedWidth = width1 + X;
+			}
+		} else {
+			combinedWidth = width2 + X;
+		}
+	}
+	return combinedWidth;
+}
+
+int calculateBottomRightXPoint(int width1, int width2, int X) {
+	int bottomRightPoint = 0;
+	if (X <= 0) {
+		bottomRightPoint = abs(X) + min(width1, width2);
+	} else {
+		int diff = abs(width1 - width2);
+		if (width2 <= width1) {
+			if (diff > X)
+				bottomRightPoint = X + width2;
+			else
+				bottomRightPoint = width1;
+		} else {
+			bottomRightPoint = width1;
+		}
+	}
+	return bottomRightPoint;
 }
 
 void showImage(cv::String title, cv::Mat image) {
