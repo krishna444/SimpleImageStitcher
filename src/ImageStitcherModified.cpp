@@ -15,6 +15,7 @@
 #include <opencv2/highgui.hpp>
 #include<opencv2/imgproc.hpp>
 #include <stdlib.h>
+//#define DEBUG :);
 
 using namespace std;
 
@@ -29,16 +30,31 @@ int calculateCombinedWidth(int width1, int width2, int X);
 int calculateBottomRightXPoint(int width1, int width2, int X);
 void writeXYZFile(unsigned short * imageData, int width, int height,
 		char *fileName);
-
-int main() {
-	char* path1 = "Samples2/4.xyz";
-	char* path2 = "Samples2/5.xyz";
+int main(int argc, char** argv) {
+	char* path1 = "2.xyz";
+	char* path2 = "3.xyz";
 	int X = -24; //100; //-20;
 	int Y = 220;
+	char* outputPath = "output/stitched.xyz";
+
+	if (argc > 1) {
+		if (argv[1] != NULL)
+			path1 = argv[1];
+		if (argv[2] != NULL)
+			path2 = argv[2];
+		if (argv[3] != NULL)
+			X = atoi(argv[3]);
+		if (argv[4] != NULL)
+			Y = atoi(argv[4]);
+		if (argv[5] != NULL)
+			outputPath = argv[5];
+	}
+
 	cv::Mat result = stichImage(path1, path2, X, Y);
-	writeAsPNG(result, "Samples2/Result/45.png");
+	writeAsPNG(result, "output/stitched.png");
 	writeXYZFile((unsigned short*) result.data, result.cols, result.rows,
-			"Samples2/Result/45.xyz");
+			outputPath);
+
 }
 
 /**
@@ -62,12 +78,13 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 	cv::Mat mat1(height1, width1, CV_16U, image1);
 	cv::Mat mat2(height2, width2, CV_16U, image2);
 
-	writeAsPNG(mat1, "image1.png");
-	writeAsPNG(mat2, "image2.png");
+#ifdef DEBUG
+	writeAsPNG(mat1, "output/image1.png");
+	writeAsPNG(mat2, "output/image2.png");
+#endif
 
-//Preprocessing: Set actual 0 image pixels to value 1, to disregard the background pixels from original pixels
-// Blending bugfix
-
+	//Preprocessing: Set actual 0 image pixels to value 1, to disregard the background pixels from original pixels
+	// Blending bugfix
 	for (int x = 0; x < mat1.rows; x++) {
 		for (int y = 0; y < mat1.cols * 2; y++) {
 			if (mat1.at<uchar>(x, y) == 0) {
@@ -85,15 +102,14 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 		}
 	}
 
-	writeAsPNG(mat1, "image1_B.png");
-	writeAsPNG(mat2, "image2_B.png");
-
 //calculate combine image size
 	int combineHeight = calculateCombinedHeight(height1, height2, Y);
 	int combineWidth = calculateCombinedWidth(width1, width2, X);
 
-	cv::Mat combined1 = cv::Mat::zeros(combineHeight, combineWidth, CV_16U);
-	cv::Mat combined2 = cv::Mat::zeros(combineHeight, combineWidth, CV_16U);
+	cv::Mat combined1 = cv::Mat::zeros(combineHeight, combineWidth,
+	CV_16U);
+	cv::Mat combined2 = cv::Mat::zeros(combineHeight, combineWidth,
+	CV_16U);
 
 //Find intersection points
 	cv::Point2d topLeft(abs(X), height1 - Y);
@@ -117,14 +133,16 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 						cv::Range(X, X + width2)));
 	}
 
-	writeAsPNG(combined1, "combined1.png");
-	writeAsPNG(combined2, "combined2.png");
+#ifdef DEBUG
+	writeAsPNG(combined1, "output/combined1.png");
+	writeAsPNG(combined2, "output/combined2.png");
+#endif
+	cv::Mat stitched = cv::Mat::zeros(combineHeight, combineWidth,
+	CV_16U);
 
-	cv::Mat stitched = cv::Mat::zeros(combineHeight, combineWidth, CV_16U);
-
-//METHOD1. FIXED BLENDING(NOT GOOD)
-	cv::addWeighted(combined1, 0.5, combined2, 0.5, 30000, stitched);
-	writeAsPNG(stitched, "stitched1.png");
+//METHOD1. FIXED BLENDING(NOT GOOD) => FOR TESTING
+//	cv::addWeighted(combined1, 0.5, combined2, 0.5, 30000, stitched);
+//	writeAsPNG(stitched, "stitched1.png");
 
 //Combine to blended2
 	for (int i = 0; i < combineHeight; i++) {
@@ -141,13 +159,13 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 		cout << i << endl;
 	}
 
-	writeAsPNG(stitched, "stitched2.png");
+#ifdef DEBUG
+	writeAsPNG(stitched, "output/composite.png");
+#endif
 
 //Implement blending
-//int commonWidth = width1 - abs(X);
 	int commonWidth = min(width1, width2) - abs(X);
 	int commonHeight = Y;
-	cout << "commonWidth" << commonWidth;
 	cv::Mat common1 = cv::Mat::zeros(commonHeight, commonWidth, CV_16U);
 	cv::Mat common2 = cv::Mat::zeros(commonHeight, commonWidth, CV_16U);
 	int startX = X < 0 ? 0 : X;
@@ -158,9 +176,12 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 	mat2(cv::Range(0, commonHeight), cv::Range(startX, startX + commonWidth)).copyTo(
 			common2);
 
-//writeAsPNG(common1, "common1.png");
-//writeAsPNG(common2, "common2.png");
-	cv::Mat commonBlended = cv::Mat::zeros(commonHeight, commonWidth, CV_16U);
+#ifdef DEBUG
+	writeAsPNG(common1, "output/common1.png");
+	writeAsPNG(common2, "output/common2.png");
+#endif
+	cv::Mat commonBlended = cv::Mat::zeros(commonHeight, commonWidth,
+	CV_16U);
 //METHOD 2. Vertical Blending
 	/*for (int i = 0; i < commonHeight; i++) {
 	 for (int j = 0; j < commonWidth * 2; j++) {
