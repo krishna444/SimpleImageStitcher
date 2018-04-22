@@ -1,9 +1,12 @@
 //============================================================================
-// Name        : HelloWorld.cpp
-// Author      : Krishna
-// Version     : Version1.0(2017-12-07)
-// Copyright   : Your copyright notice
-// Description : Image Stitcher with Shift Parameters X and Y
+// Name        : ImageStitcherModified.cpp
+// Author      : Krishna Paudel
+// Version     : Version2.2(2018-04-21)
+// Copyright   : @Krishna
+// Description : Image Stitcher with Shift Parameters X and Y. Version 2.2 included blending bug fixes and support for different width images. Black pixel
+// You could use or modify the source code IF IT MEETS YOUR REQUIREMENT.
+// I do not take any responsibility for any misfunctioning or failure.
+// No guarranty or warranty provided.
 //============================================================================
 #include <fstream>
 #include <iostream>
