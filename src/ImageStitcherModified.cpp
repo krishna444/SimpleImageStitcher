@@ -30,12 +30,13 @@ int calculateCombinedWidth(int width1, int width2, int X);
 int calculateBottomRightXPoint(int width1, int width2, int X);
 void writeXYZFile(unsigned short * imageData, int width, int height,
 		char *fileName);
+void printAsMatrix(cv::Mat image);
 int main(int argc, char** argv) {
-	char* path1 = "2.xyz";
-	char* path2 = "3.xyz";
-	int X = -24; //100; //-20;
-	int Y = 220;
-	char* outputPath = "output/stitched.xyz";
+	char* path1 = "Samples4/1.xyz";
+	char* path2 = "Samples4/2.xyz";
+	int X = 500; //100; //-20;
+	int Y = 500;
+	char* outputPath = "Samples4/output/stitched.xyz";
 
 	if (argc > 1) {
 		if (argv[1] != NULL)
@@ -51,7 +52,7 @@ int main(int argc, char** argv) {
 	}
 
 	cv::Mat result = stichImage(path1, path2, X, Y);
-	writeAsPNG(result, "output/stitched.png");
+	writeAsPNG(result, "Samples4/output/stitched.png");
 	writeXYZFile((unsigned short*) result.data, result.cols, result.rows,
 			outputPath);
 
@@ -79,8 +80,8 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 	cv::Mat mat2(height2, width2, CV_16U, image2);
 
 #ifdef DEBUG
-	writeAsPNG(mat1, "output/image1.png");
-	writeAsPNG(mat2, "output/image2.png");
+	writeAsPNG(mat1, "Samples4/output/image1.png");
+	writeAsPNG(mat2, "Samples4/output/image2.png");
 #endif
 
 	//Preprocessing: Set actual 0 image pixels to value 1, to disregard the background pixels from original pixels
@@ -134,8 +135,8 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 	}
 
 #ifdef DEBUG
-	writeAsPNG(combined1, "output/combined1.png");
-	writeAsPNG(combined2, "output/combined2.png");
+	writeAsPNG(combined1, "Samples4/output/combined1.png");
+	writeAsPNG(combined2, "Samples4/output/combined2.png");
 #endif
 	cv::Mat stitched = cv::Mat::zeros(combineHeight, combineWidth,
 	CV_16U);
@@ -156,14 +157,14 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 									+ combined2.at<uchar>(i, j) / 2;
 			stitched.at<uchar>(i, j) = blenValue;
 		}
-		cout << i << endl;
 	}
 
 #ifdef DEBUG
-	writeAsPNG(stitched, "output/composite.png");
+	printf("\nComposite Images creation COMPLETE");
+	writeAsPNG(stitched, "Samples4/output/composite.png");
 #endif
 
-//Implement blending
+	//Implement blending
 	int commonWidth = min(width1, width2) - abs(X);
 	int commonHeight = Y;
 	cv::Mat common1 = cv::Mat::zeros(commonHeight, commonWidth, CV_16U);
@@ -177,8 +178,8 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 			common2);
 
 #ifdef DEBUG
-	writeAsPNG(common1, "output/common1.png");
-	writeAsPNG(common2, "output/common2.png");
+	writeAsPNG(common1, "Samples4/output/common1.png");
+	writeAsPNG(common2, "Samples4/output/common2.png");
 #endif
 	cv::Mat commonBlended = cv::Mat::zeros(commonHeight, commonWidth,
 	CV_16U);
@@ -206,7 +207,7 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 
 //METHOD 3: Bidirectional Blending(Best Method)
 	for (int i = 0; i < commonHeight; i++) {
-		for (int j = 0; j < max(width2, width1) * 2; j++) {
+		for (int j = 0; j < /*max(width2, width1)*/commonWidth * 2; j++) {
 			ushort blendedValue = 0;
 			int image1Distance = 0;
 			int image2Distance = 0;
@@ -225,6 +226,7 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 						/ (double) (image1Distance + image2Distance);
 				beta = 1 - alpha;
 			}
+
 			blendedValue = common1.at<uchar>(i, j) * alpha
 					+ common2.at<uchar>(i, j) * beta;
 			commonBlended.at<uchar>(i, j) =
@@ -238,11 +240,34 @@ cv::Mat stichImage(char* path1, char* path2, int X, int Y) {
 
 	}
 
-	commonBlended.copyTo(
-			stitched(cv::Range(height1 - Y, height1),
-					cv::Range(abs(X), abs(X) + commonWidth)));
+#ifdef DEBUG
+	printf("\n########## Blending COMPLETE ###########\n");
+	writeAsPNG(commonBlended, "Samples4/output/commonBlended.png");
+
+#endif
+
+	if (commonBlended.rows != 0)
+		commonBlended.copyTo(
+				stitched(cv::Range(height1 - Y, height1),
+						cv::Range(abs(X), abs(X) + commonWidth)));
+
+#ifdef DEBUG
+	printf("\n########## STITCHING FINISHED ###########");
+#endif
 
 	return stitched;
+}
+
+/**
+ * Function to print matrix values
+ */
+void printAsMatrix(cv::Mat image) {
+	for (int i = 0; i < image.rows; i++) {
+		for (int j = 0; j < image.cols; j++) {
+			printf("[%d %d]=%d\t", i, j, image.at<uchar>(i, j));
+		}
+		printf("\n");
+	}
 }
 
 int calculateCombinedHeight(int height1, int height2, int Y) {
